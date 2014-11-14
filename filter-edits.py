@@ -14,7 +14,7 @@ def main(infile,outfile):
 			revision = edit[0].split(' ')
 			article_id,rev_id,timestamp,username,user_id = 'a'+revision[1],'e'+revision[2],revision[4],revision[5],'u'+revision[6].strip()
 			# Ignore anonymous edits
-			if user_id.startswith('ip'):
+			if user_id.startswith('uip'):
 				continue
 			# Parse article category
 			category_line = edit[1].split(' ')
