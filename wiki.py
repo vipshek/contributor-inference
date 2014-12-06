@@ -112,10 +112,11 @@ def load_talk(infile):
 def main(infile):
 	g = load_file(infile)
 	triangles = Counter()
-	for _,u in g.users.iteritems():
-		for _,v in g.users.iteritems():
-			if u is v:
-				continue
+	# For each pair of nodes
+	kvs = g.users.items()
+	for i,(_,u) in enumerate(kvs):
+		for _,v in kvs[i+1:]:
+			# Find number of articles in common
 			t = len(u.common_with(v))
 			triangles[t] += 1
 	print triangles
