@@ -1,5 +1,6 @@
 import sys
 from collections import Counter
+import multiprocessing as mp
 
 class User:
 	def __init__(self, id, name=""):
@@ -60,20 +61,20 @@ class Graph:
 	def add_edit(self,article_id,edit_id,user_id,name,title,timestamp,category,minor,wc):
 		if user_id not in self.users:
 			self.users[user_id] = User(user_id,name)
-		if article_id not in self.articles:
-			self.articles[article_id] = Article(article_id,title,category)
+		#if article_id not in self.articles:
+		#	self.articles[article_id] = Article(article_id,title,category)
 
 		u = self.users[user_id]
-		a = self.articles[article_id]
+		#a = self.articles[article_id]
 
 		#e = Edit(edit_id,u,a,timestamp,minor,wc)
 		#self.edits[edit_id] = e
 
 		#u.edits.add(e)
-		u.articles.add(a)
+		u.articles.add(int(article_id[1:]))
 
 		#a.edits.add(e)
-		a.users.add(u)
+		#a.users.add(u)
 
 	def add_user_edge(self,user_id,other_user_id):
 		# Ensure source exists
@@ -109,17 +110,30 @@ def load_talk(infile):
 			g.add_user_edge(int(source),int(sink))
 	return g
 
-def main(infile):
-	g = load_file(infile)
+def f(user_articles,i,folds,result_queue):
 	triangles = Counter()
-	# For each pair of nodes
-	kvs = g.users.items()
-	for i,(_,u) in enumerate(kvs):
-		for _,v in kvs[i+1:]:
-			# Find number of articles in common
-			t = len(u.common_with(v))
-			triangles[t] += 1
-	print triangles
+	for i in range(i,len(user_articles),folds):
+		_, uarticles = user_articles[i]
+		if i != len(user_articles):
+			for _, varticles in user_articles[i+1:]:
+				t = len(uarticles & varticles)
+				triangles[t] += 1
+	result_queue.put(triangles)
+
+def main(infile,folds):
+	g = load_file(infile)
+	user_articles = {}
+	for uid,user in g.users.iteritems():
+		user_articles[uid] = user.articles
+	user_articles = user_articles.items()
+
+	result_queue = mp.Queue()
+	jobs = [mp.Process(target = f, args = (user_articles,i,folds,result_queue)) for i in range(folds)]
+	for job in jobs: job.start()
+	for job in jobs: job.join()
+	results = [result_queue.get() for job in jobs]
+	c = reduce(lambda x,y: x+y,results,Counter())
+	print c
 
 if __name__ == '__main__':
-	main(sys.argv[1])
+	main(sys.argv[1],int(sys.argv[2]))
