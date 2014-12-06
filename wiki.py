@@ -1,11 +1,12 @@
 import sys
 
 class User:
-	def __init__(self, id, name):
+	def __init__(self, id, name=""):
 		self.id = id
 		self.name = name
 		self.edits = set()
 		self.articles = set()
+		self.out_talks = set()
 
 	"""
 	def articles(self):
@@ -73,6 +74,22 @@ class Graph:
 		a.edits.add(e)
 		a.users.add(u)
 
+	def add_user_edge(self,user_id,other_user_id):
+		# Ensure source exists
+		if user_id not in self.users:
+			self.users[user_id] = User(user_id)
+		# Ensure sink exists
+		if other_user_id not in self.users:
+			self.users[other_user_id] = User(other_user_id)
+		# Add edge from source to sink
+		self.users[user_id].out_talks.add(self.users[other_user_id])
+
+	def count_user_edges(self):
+		count = 0
+		for id,user in self.users.iteritems():
+			count += len(user.out_talks)
+		return count
+
 def load_file(infile):
 	g = Graph()
 	with open(infile,"r") as f:
@@ -81,8 +98,23 @@ def load_file(infile):
 			g.add_edit(article_id,rev_id,user_id,username,title,timestamp,category,minor,word_count)
 	return g
 
+def load_talk(infile):
+	g = Graph()
+	with open(infile,"r") as f:
+		for line in f:
+			if line[0] == "#":
+				continue
+			source,sink = line[:-1].split('\t')
+			g.add_user_edge(int(source),int(sink))
+	return g
+
 def main(infile):
-	g = load_file(infile)
+	g = load_talk(infile)
+	num_edges = float(g.count_user_edges())
+	num_users = len(g.users)
+	print "Edges:", num_edges
+	print "Users:", num_users
+	print num_edges / (num_users ** 2 - num_users)
 
 if __name__ == '__main__':
 	main(sys.argv[1])
