@@ -1,4 +1,5 @@
 import sys
+from collections import Counter
 
 class User:
 	def __init__(self, id, name=""):
@@ -65,13 +66,13 @@ class Graph:
 		u = self.users[user_id]
 		a = self.articles[article_id]
 
-		e = Edit(edit_id,u,a,timestamp,minor,wc)
-		self.edits[edit_id] = e
+		#e = Edit(edit_id,u,a,timestamp,minor,wc)
+		#self.edits[edit_id] = e
 
-		u.edits.add(e)
+		#u.edits.add(e)
 		u.articles.add(a)
 
-		a.edits.add(e)
+		#a.edits.add(e)
 		a.users.add(u)
 
 	def add_user_edge(self,user_id,other_user_id):
@@ -109,12 +110,15 @@ def load_talk(infile):
 	return g
 
 def main(infile):
-	g = load_talk(infile)
-	num_edges = float(g.count_user_edges())
-	num_users = len(g.users)
-	print "Edges:", num_edges
-	print "Users:", num_users
-	print num_edges / (num_users ** 2 - num_users)
+	g = load_file(infile)
+	triangles = Counter()
+	for _,u in g.users.iteritems():
+		for _,v in g.users.iteritems():
+			if u is v:
+				continue
+			t = len(u.common_with(v))
+			triangles[t] += 1
+	print triangles
 
 if __name__ == '__main__':
 	main(sys.argv[1])
