@@ -71,7 +71,7 @@ class Graph:
 		#self.edits[edit_id] = e
 
 		#u.edits.add(e)
-		u.articles.add(int(article_id[1:]))
+		u.articles.add(article_id)
 
 		#a.edits.add(e)
 		#a.users.add(u)
@@ -92,12 +92,16 @@ class Graph:
 			count += len(user.out_talks)
 		return count
 
+	def has_user_edge(self,user_id,other_user_id):
+		return other_user_id in self.users[user_id].out_talks
+
+
 def load_file(infile):
 	g = Graph()
 	with open(infile,"r") as f:
 		for line in f:
 			article_id,rev_id,user_id,username,title,timestamp,category,minor,word_count = line.split(' ')
-			g.add_edit(article_id,rev_id,user_id,username,title,timestamp,category,minor,word_count)
+			g.add_edit(int(article_id[1:]),int(rev_id[1:]),int(user_id[1:]),username,title,timestamp,category,minor,word_count)
 	return g
 
 def load_talk(infile):
@@ -110,30 +114,46 @@ def load_talk(infile):
 			g.add_user_edge(int(source),int(sink))
 	return g
 
-def f(user_articles,i,folds,result_queue):
+def f(user_articles,talk_g,i,folds,trq,talkrq):
 	triangles = Counter()
+	connections = Counter()
+
 	for i in range(i,len(user_articles),folds):
-		_, uarticles = user_articles[i]
+		uid, uarticles = user_articles[i]
 		if i != len(user_articles):
-			for _, varticles in user_articles[i+1:]:
+			for vid, varticles in user_articles[i+1:]:
 				t = len(uarticles & varticles)
 				triangles[t] += 1
-	result_queue.put(triangles)
+				if talk_g.has_user_edge(uid,vid) or talk_g.has_user_edge(vid,uid):
+					connections[t] += 1
+	
+	trq.put(triangles)
+	talkrq.put(connections)
 
-def main(infile,folds):
-	g = load_file(infile)
+def main(meta_infile,talk_infile,folds):
+	g = load_file(meta_infile)
+	talk_g = load_talk(talk_infile)
+	print "Loaded graphs"
+
 	user_articles = {}
 	for uid,user in g.users.iteritems():
 		user_articles[uid] = user.articles
 	user_articles = user_articles.items()
 
-	result_queue = mp.Queue()
-	jobs = [mp.Process(target = f, args = (user_articles,i,folds,result_queue)) for i in range(folds)]
+	trq = mp.Queue()
+	talkrq = mp.Queue()
+	jobs = [mp.Process(target = f, args = (user_articles,talk_g,i,folds,trq,talkrq)) for i in range(folds)]
 	for job in jobs: job.start()
 	for job in jobs: job.join()
-	results = [result_queue.get() for job in jobs]
-	c = reduce(lambda x,y: x+y,results,Counter())
-	print c
+
+	triangle_results = [trq.get() for job in jobs]
+	talk_results = [talkrq.get() for job in jobs]
+
+	triangle_counter = reduce(lambda x,y: x+y,triangle_results,Counter())
+	talk_counter = reduce(lambda x,y: x+y,talk_results,Counter())
+
+	print triangle_counter
+	print talk_counter
 
 if __name__ == '__main__':
-	main(sys.argv[1],int(sys.argv[2]))
+	main(sys.argv[1],sys.argv[2],int(sys.argv[3]))
