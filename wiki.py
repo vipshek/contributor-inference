@@ -84,7 +84,7 @@ class Graph:
 		if other_user_id not in self.users:
 			self.users[other_user_id] = User(other_user_id)
 		# Add edge from source to sink
-		self.users[user_id].out_talks.add(self.users[other_user_id])
+		self.users[user_id].out_talks.add(other_user_id)
 
 	def count_user_edges(self):
 		count = 0
