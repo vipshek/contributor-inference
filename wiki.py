@@ -93,6 +93,8 @@ class Graph:
 		return count
 
 	def has_user_edge(self,user_id,other_user_id):
+		if user_id not in self.users:
+			return False
 		return other_user_id in self.users[user_id].out_talks
 
 
