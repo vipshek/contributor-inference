@@ -5,21 +5,24 @@ class User:
 		self.id = id
 		self.name = name
 		self.edits = set()
+		self.articles = set()
 
+	"""
 	def articles(self):
 		result = set()
 		for edit in edits:
 			result.add(edit.article)
 		return result
+	"""
 
 	def cocontributors(self):
 		result = set()
-		for article in self.articles():
+		for article in self.articles:
 			result.update(article.users())
 		return result
 
 	def common_with(self,other):
-		return self.articles() & other.articles()
+		return self.articles & other.articles
 
 class Article:
 	def __init__(self, id, title, category):
@@ -27,12 +30,15 @@ class Article:
 		self.title = title
 		self.category = category
 		self.edits = set()
+		self.users = set()
 
+	"""
 	def users(self):
 		result = set()
 		for edit in edits:
 			result.add(edit.user)
 		return result
+	"""
 
 class Edit:
 	def __init__(self, id, user, article, timestamp, minor, wc):
@@ -62,7 +68,10 @@ class Graph:
 		self.edits[edit_id] = e
 
 		u.edits.add(e)
+		u.articles.add(a)
+
 		a.edits.add(e)
+		a.users.add(u)
 
 def load_file(infile):
 	g = Graph()
