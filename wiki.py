@@ -116,7 +116,7 @@ def load_talk(infile):
 			g.add_user_edge(int(source),int(sink))
 	return g
 
-def f(user_articles,talk_g,i,folds,trq,talkrq):
+def train(user_articles,talk_g,i,folds,trq,talkrq):
 	triangles = Counter()
 	connections = Counter()
 
@@ -144,7 +144,7 @@ def main(meta_infile,talk_infile,folds):
 
 	trq = mp.Queue()
 	talkrq = mp.Queue()
-	jobs = [mp.Process(target = f, args = (user_articles,talk_g,i,folds,trq,talkrq)) for i in range(folds)]
+	jobs = [mp.Process(target = train, args = (user_articles,talk_g,i,folds,trq,talkrq)) for i in range(folds)]
 	for job in jobs: job.start()
 	for job in jobs: job.join()
 
@@ -154,8 +154,13 @@ def main(meta_infile,talk_infile,folds):
 	triangle_counter = reduce(lambda x,y: x+y,triangle_results,Counter())
 	talk_counter = reduce(lambda x,y: x+y,talk_results,Counter())
 
-	print triangle_counter
-	print talk_counter
+	with open("data/triangle_counts.txt","w") as f:
+		for x,y in triangle_counter.most_common():
+			f.write("%d %d\n" % (x,y))
+	
+	with open("data/talk_counts.txt","w") as f:
+		for x,y in talk_counter.most_common():
+			f.write("%d %d\n" % (x,y))
 
 if __name__ == '__main__':
 	main(sys.argv[1],sys.argv[2],int(sys.argv[3]))
