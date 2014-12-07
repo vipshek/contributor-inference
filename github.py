@@ -157,21 +157,40 @@ def train(meta_g,follow_g,folds):
 		for x,y in follow_counter.most_common():
 			f.write("%d %d\n" % (x,y))
 
-def test(meta_g,follow_g,k):
-	users = meta_g.users.items()
-
+def test_process(users,k,i,folds,result_queue):
 	heap = []
-	for i,(uid,u) in enumerate(users):
-		for (vid,v) in users[i+1:]:
+	for i in range(i,len(users),folds):
+		uid,u = users[i]
+		for vid,v in users[i+1:]:
 			t = len(u.common_with(v))
 			if len(heap) < k:
 				heapq.heappush(heap,(t,uid,vid))
 			else:
 				heapq.heappushpop(heap,(t,uid,vid))
+	result_queue.put(heap)
+
+
+def test(meta_g,talk_g,folds,k=10):
+	users = meta_g.users.items()
+
+	result_queue = mp.Queue()
+	jobs = [mp.Process(target = test_process, args = (users,k,i,folds,result_queue)) for i in range(folds)]
+	for job in jobs: job.start()
+	for job in jobs: job.join()
+
+	results = [result_queue.get() for job in jobs]
+
+	heap = []
+	for result in results:
+		for item in result:
+			if len(heap) < k:
+				heapq.heappush(heap,item)
+			else:
+				heapq.heappushpop(heap,item)
 	
 	correct = 0
 	for (_,uid,vid) in heap:
-		if follow_g.has_user_edge(uid,vid) or follow_g.has_user_edge(vid,uid):
+		if talk_g.has_user_edge(uid,vid) or talk_g.has_user_edge(vid,uid):
 			correct += 1
 
 	print "%d correct / %d = %f" % (correct, k, correct / float(k))
@@ -181,7 +200,7 @@ def main(commit_infile,follow_infile,folds):
 	follow_g = load_follow(follow_infile)
 	print "Loaded graphs"
 
-	train(g,follow_g,folds)
+	test(g,follow_g,folds)
 
 if __name__ == '__main__':
 	main(sys.argv[1],sys.argv[2],int(sys.argv[3]))
