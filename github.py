@@ -87,7 +87,7 @@ class Graph:
 		count = 0
 		for id,user in self.users.iteritems():
 			count += len(user.out_follows)
-		return count
+		return count/2
 
 	def has_user_edge(self,user_id,other_user_id):
 		if user_id not in self.users:
@@ -200,27 +200,27 @@ def cond_prob(t):
 	# return (1 - math.exp(-0.03777928734044 * t))
 	return min(1,0.0418 * t)
 
-def infer_process(users,i,folds,result_queue):
+def infer_process(users,i,folds,result_queue,threshold):
 	edges = []
 	for i in range(i,len(users),folds):
 		uid,u = users[i]
 		for vid,v in users[i+1:]:
 			t = len(u.common_with(v))
 			p = cond_prob(t)
-			if p > 0.5:
+			if p > threshold:
 				edges.append((uid,vid))
 	result_queue.put(edges)
 
-def infer(meta_g,talk_g,folds):
+def infer(meta_g,talk_g,folds,threshold=0.5):
 	users = meta_g.users.items()
 
 	result_queue = mp.Queue()
-	jobs = [mp.Process(target = infer_process, args = (users,i,folds,result_queue)) for i in range(folds)]
+	jobs = [mp.Process(target = infer_process, args = (users,i,folds,result_queue,threshold)) for i in range(folds)]
 	for job in jobs: job.start()
 	for job in jobs: job.join()
 	results = [result_queue.get() for job in jobs]
 
-	correct, count = 0, 0, 0
+	correct, count = 0, 0
 	for result in results:
 		for (uid,vid) in result:
 			count += 1
@@ -232,12 +232,12 @@ def infer(meta_g,talk_g,folds):
 	print "Precision: %f" % precision
 	print "Recall:    %f" % recall
 
-def main(commit_infile,follow_infile,folds):
+def main(commit_infile,follow_infile,folds,threshold):
 	g = load_file(commit_infile)
 	follow_g = load_follow(follow_infile)
 	print "Loaded graphs"
 
-	infer(g,follow_g,folds)
+	infer(g,follow_g,folds,threshold)
 
 if __name__ == '__main__':
-	main(sys.argv[1],sys.argv[2],int(sys.argv[3]))
+	main(sys.argv[1],sys.argv[2],int(sys.argv[3]),float(sys.argv[4]))
