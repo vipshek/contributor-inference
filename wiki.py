@@ -1,6 +1,8 @@
 import sys
-from collections import Counter
 import multiprocessing as mp
+from collections import Counter
+import heapq
+import random
 
 class User:
 	def __init__(self, id, name=""):
@@ -97,6 +99,12 @@ class Graph:
 			return False
 		return other_user_id in self.users[user_id].out_talks
 
+	def get_user_article_dict(self):
+		user_articles = {}
+		for uid,user in self.users.iteritems():
+			user_articles[uid] = user.articles
+		return user_articles.items()
+
 
 def load_file(infile):
 	g = Graph()
@@ -116,7 +124,7 @@ def load_talk(infile):
 			g.add_user_edge(int(source),int(sink))
 	return g
 
-def train(user_articles,talk_g,i,folds,trq,talkrq):
+def train_process(user_articles,talk_g,i,folds,trq,talkrq):
 	triangles = Counter()
 	connections = Counter()
 
@@ -132,19 +140,12 @@ def train(user_articles,talk_g,i,folds,trq,talkrq):
 	trq.put(triangles)
 	talkrq.put(connections)
 
-def main(meta_infile,talk_infile,folds):
-	g = load_file(meta_infile)
-	talk_g = load_talk(talk_infile)
-	print "Loaded graphs"
-
-	user_articles = {}
-	for uid,user in g.users.iteritems():
-		user_articles[uid] = user.articles
-	user_articles = user_articles.items()
+def train(meta_g,talk_g,folds):
+	user_articles = meta_g.get_user_article_dict()
 
 	trq = mp.Queue()
 	talkrq = mp.Queue()
-	jobs = [mp.Process(target = train, args = (user_articles,talk_g,i,folds,trq,talkrq)) for i in range(folds)]
+	jobs = [mp.Process(target = train_process, args = (user_articles,talk_g,i,folds,trq,talkrq)) for i in range(folds)]
 	for job in jobs: job.start()
 	for job in jobs: job.join()
 
@@ -161,6 +162,35 @@ def main(meta_infile,talk_infile,folds):
 	with open("data/talk_counts.txt","w") as f:
 		for x,y in talk_counter.most_common():
 			f.write("%d %d\n" % (x,y))
+
+def cond_prob(t):
+	return random.random()
+
+def test(meta_g,talk_g,k):
+	users = meta_g.users.items()
+
+	heap = []
+	for i,(uid,u) in enumerate(users):
+		for (vid,v) in users[i+1:]:
+			t = len(u.common_with(v))
+			if len(heap) < k:
+				heapq.heappush(heap,(t,uid,vid))
+			else:
+				heapq.heappushpop(heap,(t,uid,vid))
+	
+	correct = 0
+	for (_,uid,vid) in heap:
+		if talk_g.has_user_edge(uid,vid) or talk_g.has_user_edge(vid,uid):
+			correct += 1
+
+	print "%d correct / %d = %f" % (correct, k, correct / float(k))
+
+def main(meta_infile,talk_infile,folds):
+	g = load_file(meta_infile)
+	talk_g = load_talk(talk_infile)
+	print "Loaded graphs"
+
+	test(g,talk_g,folds)
 
 if __name__ == '__main__':
 	main(sys.argv[1],sys.argv[2],int(sys.argv[3]))
