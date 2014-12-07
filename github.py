@@ -195,12 +195,50 @@ def test(meta_g,talk_g,folds,k=10):
 
 	print "%d correct / %d = %f" % (correct, k, correct / float(k))
 
+def cond_prob(t):
+	# Distribution fitted to GitHub data
+	return (1 - math.exp(-0.03777928734044 * t))
+
+def infer_process(users,i,folds,result_queue):
+	edges = []
+	for i in range(i,len(users),folds):
+		uid,u = users[i]
+		for vid,v in users[i+1:]:
+			t = len(u.common_with(v))
+			p = cond_prob(t)
+			if p > 0.5:
+				edges.append((uid,vid))
+	result_queue.put(edges)
+
+def infer(meta_g,talk_g,folds):
+	users = meta_g.users.items()
+
+	result_queue = mp.Queue()
+	jobs = [mp.Process(target = infer_process, args = (users,i,folds,result_queue)) for i in range(folds)]
+	for job in jobs: job.start()
+	for job in jobs: job.join()
+	results = [result_queue.get() for job in jobs]
+
+	correct, wrong, count = 0, 0, 0
+	for result in results:
+		for (uid,vid) in result:
+			count += 1
+			if talk_g.has_user_edge(uid,vid) or talk_g.has_user_edge(vid,uid):
+				correct += 1
+			else:
+				wrong += 1
+	precision = float(correct) / (correct + wrong)
+	recall = float(correct) / talk_g.count_user_edges()
+
+	print "Precision: %f" % precision
+	print "Recall:    %f" % recall
+
 def main(commit_infile,follow_infile,folds):
 	g = load_file(commit_infile)
 	follow_g = load_follow(follow_infile)
 	print "Loaded graphs"
 
-	test(g,follow_g,folds)
+	infer(g,follow_g,folds)
 
 if __name__ == '__main__':
 	main(sys.argv[1],sys.argv[2],int(sys.argv[3]))
