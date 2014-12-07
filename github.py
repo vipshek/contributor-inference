@@ -197,7 +197,8 @@ def test(meta_g,talk_g,folds,k=10):
 
 def cond_prob(t):
 	# Distribution fitted to GitHub data
-	return (1 - math.exp(-0.03777928734044 * t))
+	# return (1 - math.exp(-0.03777928734044 * t))
+	return min(1,0.0418 * t)
 
 def infer_process(users,i,folds,result_queue):
 	edges = []
@@ -219,15 +220,13 @@ def infer(meta_g,talk_g,folds):
 	for job in jobs: job.join()
 	results = [result_queue.get() for job in jobs]
 
-	correct, wrong, count = 0, 0, 0
+	correct, count = 0, 0, 0
 	for result in results:
 		for (uid,vid) in result:
 			count += 1
 			if talk_g.has_user_edge(uid,vid) or talk_g.has_user_edge(vid,uid):
 				correct += 1
-			else:
-				wrong += 1
-	precision = float(correct) / (correct + wrong)
+	precision = float(correct) / count
 	recall = float(correct) / talk_g.count_user_edges()
 
 	print "Precision: %f" % precision
