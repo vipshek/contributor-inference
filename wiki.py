@@ -3,6 +3,7 @@ import multiprocessing as mp
 from collections import Counter
 import heapq
 import random
+import math
 
 class User:
 	def __init__(self, id, name=""):
@@ -76,7 +77,7 @@ class Graph:
 		count = 0
 		for id,user in self.users.iteritems():
 			count += len(user.out_talks)
-		return count
+		return count / 2
 
 	def has_user_edge(self,user_id,other_user_id):
 		if user_id not in self.users:
@@ -160,7 +161,6 @@ def test_process(users,k,i,folds,result_queue):
 				heapq.heappushpop(heap,(t,uid,vid))
 	result_queue.put(heap)
 
-
 def test(meta_g,talk_g,folds,k=10):
 	users = meta_g.users.items()
 
@@ -186,12 +186,50 @@ def test(meta_g,talk_g,folds,k=10):
 
 	print "%d correct / %d = %f" % (correct, k, correct / float(k))
 
+def cond_prob(t):
+	# Distribution fitted to GitHub data
+	return (1 - math.exp(-0.03777928734044 * t))
+
+def infer_process(users,i,folds,result_queue):
+	edges = []
+	for i in range(i,len(users),folds):
+		uid,u = users[i]
+		for vid,v in users[i+1:]:
+			t = len(u.common_with(v))
+			p = cond_prob(t)
+			if p > 0.5:
+				edges.append((uid,vid))
+	result_queue.put(edges)
+
+def infer(meta_g,talk_g,folds):
+	users = meta_g.users.items()
+
+	result_queue = mp.Queue()
+	jobs = [mp.Process(target = infer_process, args = (users,i,folds,result_queue)) for i in range(folds)]
+	for job in jobs: job.start()
+	for job in jobs: job.join()
+	results = [result_queue.get() for job in jobs]
+
+	correct, wrong, count = 0, 0, 0
+	for result in results:
+		for (uid,vid) in result:
+			count += 1
+			if talk_g.has_user_edge(uid,vid) or talk_g.has_user_edge(vid,uid):
+				correct += 1
+			else:
+				wrong += 1
+	precision = float(correct) / (correct + wrong)
+	recall = float(correct) / talk_g.count_user_edges()
+
+	print "Precision: %f" % precision
+	print "Recall:    %f" % recall
+
 def main(meta_infile,talk_infile,folds):
 	g = load_file(meta_infile)
 	talk_g = load_talk(talk_infile)
 	print "Loaded graphs"
 
-	test(g,talk_g,folds)
+	infer(g,talk_g,folds)
 
 if __name__ == '__main__':
 	main(sys.argv[1],sys.argv[2],int(sys.argv[3]))
