@@ -12,14 +12,6 @@ class User:
 		self.articles = set()
 		self.out_talks = set()
 
-	"""
-	def articles(self):
-		result = set()
-		for edit in edits:
-			result.add(edit.article)
-		return result
-	"""
-
 	def cocontributors(self):
 		result = set()
 		for article in self.articles:
@@ -36,14 +28,6 @@ class Article:
 		self.category = category
 		self.edits = set()
 		self.users = set()
-
-	"""
-	def users(self):
-		result = set()
-		for edit in edits:
-			result.add(edit.user)
-		return result
-	"""
 
 class Edit:
 	def __init__(self, id, user, article, timestamp, minor, wc):
@@ -122,6 +106,7 @@ def load_talk(infile):
 				continue
 			source,sink = line[:-1].split('\t')
 			g.add_user_edge(int(source),int(sink))
+			g.add_user_edge(int(sink),int(source))
 	return g
 
 def train_process(user_articles,talk_g,i,folds,trq,talkrq):
@@ -163,20 +148,36 @@ def train(meta_g,talk_g,folds):
 		for x,y in talk_counter.most_common():
 			f.write("%d %d\n" % (x,y))
 
-def cond_prob(t):
-	return random.random()
-
-def test(meta_g,talk_g,k):
-	users = meta_g.users.items()
-
+def test_process(users,k,i,folds,result_queue):
 	heap = []
-	for i,(uid,u) in enumerate(users):
-		for (vid,v) in users[i+1:]:
+	for i in range(i,len(users),folds):
+		uid,u = users[i]
+		for vid,v in users[i+1:]:
 			t = len(u.common_with(v))
 			if len(heap) < k:
 				heapq.heappush(heap,(t,uid,vid))
 			else:
 				heapq.heappushpop(heap,(t,uid,vid))
+	result_queue.put(heap)
+
+
+def test(meta_g,talk_g,folds,k=10):
+	users = meta_g.users.items()
+
+	result_queue = mp.Queue()
+	jobs = [mp.Process(target = test_process, args = (users,k,i,folds,result_queue)) for i in range(folds)]
+	for job in jobs: job.start()
+	for job in jobs: job.join()
+
+	results = [result_queue.get() for job in jobs]
+
+	heap = []
+	for result in results:
+		for item in result:
+			if len(heap) < k:
+				heapq.heappush(heap,item)
+			else:
+				heapq.heappushpop(heap,item)
 	
 	correct = 0
 	for (_,uid,vid) in heap:
