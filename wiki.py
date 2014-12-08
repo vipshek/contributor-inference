@@ -210,7 +210,7 @@ def infer(meta_g,talk_g,folds):
 	for job in jobs: job.join()
 	results = [result_queue.get() for job in jobs]
 
-	correct, count = 0, 0, 0
+	correct, count = 0, 0
 	for result in results:
 		for (uid,vid) in result:
 			count += 1
